@@ -1,0 +1,11 @@
+{
+    "authSecret": {
+        "githubSecretName": "github-token-secret",
+        "githubSecretKeyName": "token"
+    },
+    "envName": "USER_GITHUB_TOKEN",
+    "finializerKey": "assignment.core.io/finalizer",
+    "githubApi": {
+        "baseUrl": "api.github.com"
+    }
+}
