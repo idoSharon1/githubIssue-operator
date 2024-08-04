@@ -69,18 +69,41 @@ func (r *GithubIssueReconciler) getValueFromSecretAndStoreEnv(ctx context.Contex
 	}
 }
 
-func (r *GithubIssueReconciler) addFinializersIfNeeded(githubIssueInstance *assignmentcoreiov1.GithubIssue, ctx context.Context) {
+func (r *GithubIssueReconciler) isFinalizerExist(githubIssueInstance *assignmentcoreiov1.GithubIssue) bool {
+	return controllerutil.ContainsFinalizer(githubIssueInstance, loadedConfig.FinalizerKey)
+}
+
+func (r *GithubIssueReconciler) addFinalizersIfNeeded(githubIssueInstance *assignmentcoreiov1.GithubIssue, ctx context.Context) {
 	logger := log.FromContext(ctx)
 
 	logger.Info("Checking if needing to add finalizers to current issue")
 
-	if !controllerutil.ContainsFinalizer(githubIssueInstance, loadedConfig.FinalizerKey) {
+	if !r.isFinalizerExist(githubIssueInstance) {
 		controllerutil.AddFinalizer(githubIssueInstance, loadedConfig.FinalizerKey)
 		err := r.Update(ctx, githubIssueInstance)
 
 		if err != nil {
 			logger.Error(err, "Could not add finalizers this time, will try again next cycle")
+		} else {
+			logger.Info("Added finalizer")
 		}
+	} else {
+		logger.Info("finalizer already exist")
+	}
+}
+
+func (r *GithubIssueReconciler) removeFinalizer(githubIssueInstance *assignmentcoreiov1.GithubIssue, ctx context.Context) error {
+	logger := log.FromContext(ctx)
+
+	logger.Info("Trying to remove finalizer from object")
+
+	controllerutil.RemoveFinalizer(githubIssueInstance, loadedConfig.FinalizerKey)
+	err := r.Update(ctx, githubIssueInstance)
+
+	if err != nil {
+		logger.Error(err, "Could not remove finalizer from item")
+		return err
 	}
 
+	return nil
 }

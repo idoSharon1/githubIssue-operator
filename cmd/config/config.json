@@ -4,7 +4,7 @@
         "githubSecretKeyName": "token"
     },
     "envName": "USER_GITHUB_TOKEN",
-    "finializerKey": "assignment.core.io/finalizer",
+    "finalizerKey": "assignment.core.io/finalizer",
     "githubApi": {
         "baseUrl": "api.github.com"
     }

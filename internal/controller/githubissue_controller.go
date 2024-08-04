@@ -41,13 +41,30 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// reconcile function been called after the current github issue have been deleted.
-			// TODO: handle finalizers
 			return ctrl.Result{}, nil
 		}
 
 		// unexpected error happened requeue reconcile
 		return ctrl.Result{}, err
+	}
+
+	if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		// This item has been marked for deletion
+		if r.isFinalizerExist(instance) {
+			err := r.closeIssue(ctx, instance)
+
+			if err != nil {
+				logger.Error(err, "Could not preform finalizer actions, this object will be deleted anyway")
+			}
+
+			err = r.removeFinalizer(instance, ctx)
+
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+		return ctrl.Result{}, nil
 	}
 
 	var result *ctrl.Result
@@ -63,7 +80,30 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	r.addFinializersIfNeeded(instance, ctx)
+	r.addFinalizersIfNeeded(instance, ctx)
+
+	existInRepo, err := r.isIssueExist(ctx, instance)
+
+	if err != nil {
+		logger.Error(err, "Could not verify if the issue is existing on repo")
+		return ctrl.Result{}, err
+	}
+
+	if !existInRepo {
+		err := r.openIssue(ctx, instance)
+		// TODO : add condition
+
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+	} else {
+		err := r.updateIssueOnRepoIfNeeded(ctx, instance)
+
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 
 	return ctrl.Result{}, nil
 }
