@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -44,7 +45,7 @@ func (r *GithubIssueReconciler) openIssue(ctx context.Context, githubIssueInstan
 	logger := log.FromContext(ctx)
 	owner, repo := r.extractRepoAndOwner(githubIssueInstance)
 
-	_, err := restyClient.R().
+	res, err := restyClient.R().
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", os.Getenv(loadedConfig.EnvName))).
 		SetBody(map[string]interface{}{
 			"owner": owner,
@@ -53,6 +54,11 @@ func (r *GithubIssueReconciler) openIssue(ctx context.Context, githubIssueInstan
 			"body":  githubIssueInstance.Spec.Description,
 		}).
 		Post(fmt.Sprintf("https://%s/repos/%s/%s/issues", loadedConfig.GithubApi.BaseUrl, owner, repo))
+
+	if res.StatusCode() == 401 {
+		logger.Error(err, "Bad credentials, please update the access token in your secret")
+		return errors.New("bad credentials")
+	}
 
 	if err != nil {
 		logger.Error(err, "Could not create new issue at this point")
@@ -133,7 +139,7 @@ func (r *GithubIssueReconciler) updateIssue(ctx context.Context, githubIssueInst
 	logger := log.FromContext(ctx)
 	owner, repo := r.extractRepoAndOwner(githubIssueInstance)
 
-	_, err := restyClient.R().
+	res, err := restyClient.R().
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", os.Getenv(loadedConfig.EnvName))).
 		SetBody(map[string]interface{}{
 			"owner":          owner,
@@ -143,6 +149,11 @@ func (r *GithubIssueReconciler) updateIssue(ctx context.Context, githubIssueInst
 			updatedValue.Key: updatedValue.Value,
 		}).
 		Post(fmt.Sprintf("https://%s/repos/%s/%s/issues/%s", loadedConfig.GithubApi.BaseUrl, owner, repo, strconv.Itoa(remoteIssue.Number)))
+
+	if res.StatusCode() == 401 {
+		logger.Error(err, "Bad credentials, please update the access token in your secret")
+		return errors.New("bad credentials")
+	}
 
 	if err != nil {
 		logger.Error(err, "Failed to update remote issue")
@@ -190,13 +201,19 @@ func (r *GithubIssueReconciler) getAllRepoIssues(ctx context.Context, githubIssu
 	owner, repo := r.extractRepoAndOwner(githubIssueInstance)
 	var githubIssues []utils.GithubReponseWantedProperties
 
-	_, err := restyClient.R().
+	res, err := restyClient.R().
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", os.Getenv(loadedConfig.EnvName))).
 		SetResult(&githubIssues).
 		Get(fmt.Sprintf("https://%s/repos/%s/%s/issues", loadedConfig.GithubApi.BaseUrl, owner, repo))
 
+	if res.StatusCode() == 401 {
+		logger.Error(err, "Bad credentials, please update the access token in your secret")
+		return nil, errors.New("bad credentials")
+	}
+
 	if err != nil {
 		logger.Error(err, "Could not list all the issues of the wanted repository")
+
 		return nil, err
 	}
 

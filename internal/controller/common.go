@@ -3,9 +3,11 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -106,4 +108,60 @@ func (r *GithubIssueReconciler) removeFinalizer(githubIssueInstance *assignmentc
 	}
 
 	return nil
+}
+
+func (r *GithubIssueReconciler) containsCondition(ctx context.Context, githubIssueInstance *assignmentcoreiov1.GithubIssue, conditionValue string) bool {
+
+	output := false
+	for _, condition := range githubIssueInstance.Status.Conditons {
+		if condition.Reason == conditionValue {
+			output = true
+		}
+	}
+	return output
+}
+
+func (r *GithubIssueReconciler) appendCondition(ctx context.Context, githubIssueInstance *assignmentcoreiov1.GithubIssue,
+	typeName string, status metav1.ConditionStatus, reason string, message string) error {
+
+	log := log.FromContext(ctx)
+	time := metav1.Time{Time: time.Now()}
+	condition := metav1.Condition{Type: typeName, Status: status, Reason: reason, Message: message, LastTransitionTime: time}
+	githubIssueInstance.Status.Conditons = append(githubIssueInstance.Status.Conditons, condition)
+
+	err := r.Client.Status().Update(ctx, githubIssueInstance)
+	if err != nil {
+		log.Error(err, "GithubIssue resource status update failed.")
+	}
+	return nil
+}
+
+func (r *GithubIssueReconciler) setConditionIssueIsOpen(ctx context.Context, githubIssueInstance *assignmentcoreiov1.GithubIssue, status metav1.ConditionStatus) {
+	const CONDITION_ISSUE_IS_OPEN_MESSAGE = "Issue opened successfully on github"
+	const CONDITION_ISSUE_IS_OPEN_REASON = "IssueOpen"
+	CONDITION_ISSUE_IS_OPEN_STATUS := status
+	const CONDITION_ISSUE_IS_OPEN_TYPE = "IssueOpen"
+
+	r.setCondition(ctx, githubIssueInstance, CONDITION_ISSUE_IS_OPEN_TYPE, CONDITION_ISSUE_IS_OPEN_STATUS, CONDITION_ISSUE_IS_OPEN_REASON, CONDITION_ISSUE_IS_OPEN_MESSAGE)
+}
+
+func (r *GithubIssueReconciler) setConditionIssueHasPullRequest(ctx context.Context, githubIssueInstance *assignmentcoreiov1.GithubIssue, status metav1.ConditionStatus) {
+	const CONDITION_ISSUE_HAS_PR_MESSAGE = "Issue has pull request"
+	const CONDITION_ISSUE_HAS_PR_REASON = "IssueHasPR"
+	CONDITION_ISSUE_HAS_PR_STATUS := status
+	const CONDITION_ISSUE_HAS_PR_TYPE = "IssueHasPR"
+
+	r.setCondition(ctx, githubIssueInstance, CONDITION_ISSUE_HAS_PR_TYPE, CONDITION_ISSUE_HAS_PR_STATUS, CONDITION_ISSUE_HAS_PR_REASON, CONDITION_ISSUE_HAS_PR_MESSAGE)
+}
+
+func (r *GithubIssueReconciler) setCondition(ctx context.Context, githubIssueInstance *assignmentcoreiov1.GithubIssue, typeName string, status metav1.ConditionStatus, reason string, message string) {
+	logger := log.FromContext(ctx)
+
+	if !r.containsCondition(ctx, githubIssueInstance, reason) {
+		err := r.appendCondition(ctx, githubIssueInstance, typeName, status, reason, message)
+
+		if err != nil {
+			logger.Error(err, "Could not update status")
+		}
+	}
 }

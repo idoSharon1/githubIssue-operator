@@ -41,6 +41,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	if err != nil {
 		if errors.IsNotFound(err) {
+			logger.Info("Item deleted successfully")
 			return ctrl.Result{}, nil
 		}
 
@@ -91,12 +92,13 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	if !existInRepo {
 		err := r.openIssue(ctx, instance)
-		// TODO : add condition
 
 		if err != nil {
+			r.setConditionIssueIsOpen(ctx, instance, "False")
 			return ctrl.Result{}, err
 		}
 
+		r.setConditionIssueIsOpen(ctx, instance, "True")
 	} else {
 		err := r.updateIssueOnRepoIfNeeded(ctx, instance)
 
