@@ -5,6 +5,8 @@
     },
     "envName": "USER_GITHUB_TOKEN",
     "finalizerKey": "assignment.core.io/finalizer",
+    "repoLabelKey": "helper/repo",
+    "titleLabelKey": "helper/title",
     "githubApi": {
         "baseUrl": "api.github.com"
     }

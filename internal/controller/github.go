@@ -57,7 +57,10 @@ func (r *GithubIssueReconciler) openIssue(ctx context.Context, githubIssueInstan
 
 	if res.StatusCode() == 401 {
 		logger.Error(err, "Bad credentials, please update the access token in your secret")
+		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecret", "False", "UserUpdatedHisAccessTokenInSecret", "Please update your access token inside the secret we created for your object")
 		return errors.New("bad credentials")
+	} else {
+		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecret", "True", "UserUpdatedHisAccessTokenInSecret", "Access token is correct")
 	}
 
 	if err != nil {
@@ -88,13 +91,14 @@ func (r *GithubIssueReconciler) findRelevantIssue(ctx context.Context, githubIss
 	return foundIssue, nil
 }
 
-func (r *GithubIssueReconciler) updateIssueOnRepoIfNeeded(ctx context.Context, githubIssueInstance *assignmentcoreiov1.GithubIssue) error {
+func (r *GithubIssueReconciler) updateIssueOnRepoIfNeeded(ctx context.Context, githubIssueInstance *assignmentcoreiov1.GithubIssue) (bool, error) {
 	logger := log.FromContext(ctx)
+	isUpdated := false
 
 	issueOnRepo, err := r.findRelevantIssue(ctx, githubIssueInstance)
 
 	if err != nil {
-		return err
+		return isUpdated, err
 	}
 
 	if issueOnRepo.Description != githubIssueInstance.Spec.Description {
@@ -102,15 +106,16 @@ func (r *GithubIssueReconciler) updateIssueOnRepoIfNeeded(ctx context.Context, g
 		err := r.updateIssue(ctx, githubIssueInstance, issueOnRepo, utils.UpdatedValue{Key: "body", Value: githubIssueInstance.Spec.Description})
 
 		if err != nil {
-			return err
+			return isUpdated, err
 		}
 
 		logger.Info("Updated Successfully")
+		isUpdated = true
 	} else {
 		logger.Info("No need to update remote issue")
 	}
 
-	return nil
+	return isUpdated, nil
 }
 
 func (r *GithubIssueReconciler) closeIssue(ctx context.Context, githubIssueInstance *assignmentcoreiov1.GithubIssue) error {
@@ -152,7 +157,10 @@ func (r *GithubIssueReconciler) updateIssue(ctx context.Context, githubIssueInst
 
 	if res.StatusCode() == 401 {
 		logger.Error(err, "Bad credentials, please update the access token in your secret")
+		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecret", "False", "UserUpdatedHisAccessTokenInSecret", "Please update your access token inside the secret we created for your object")
 		return errors.New("bad credentials")
+	} else {
+		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecret", "True", "UserUpdatedHisAccessTokenInSecret", "Access token is correct")
 	}
 
 	if err != nil {
@@ -208,7 +216,10 @@ func (r *GithubIssueReconciler) getAllRepoIssues(ctx context.Context, githubIssu
 
 	if res.StatusCode() == 401 {
 		logger.Error(err, "Bad credentials, please update the access token in your secret")
+		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecret", "False", "UserUpdatedHisAccessTokenInSecret", "Please update your access token inside the secret we created for your object")
 		return nil, errors.New("bad credentials")
+	} else {
+		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecret", "True", "UserUpdatedHisAccessTokenInSecret", "Access token is correct")
 	}
 
 	if err != nil {
@@ -218,4 +229,30 @@ func (r *GithubIssueReconciler) getAllRepoIssues(ctx context.Context, githubIssu
 	}
 
 	return githubIssues, nil
+}
+
+func (r *GithubIssueReconciler) updateIssueHavePRCondition(ctx context.Context, githubIssueInstance *assignmentcoreiov1.GithubIssue) {
+	logger := log.FromContext(ctx)
+	owner, repo := r.extractRepoAndOwner(githubIssueInstance)
+	// var RemotePR utils.GithubPrResponseWantedProperties
+
+	remoteIssue, err := r.findRelevantIssue(ctx, githubIssueInstance)
+	if err != nil {
+		logger.Error(err, "Could not get remote issue when trying to determine if pr exist")
+
+	} else {
+		res, err := restyClient.R().
+			SetHeader("Authorization", fmt.Sprintf("Bearer %s", os.Getenv(loadedConfig.EnvName))).
+			Get(fmt.Sprintf("https://%s/repos/%s/%s/issues/%s/events", loadedConfig.GithubApi.BaseUrl, owner, repo, strconv.Itoa(remoteIssue.Number)))
+
+		if err != nil {
+			logger.Error(err, "Could not get remote issue events when trying to determine if pr exist")
+		} else {
+			if res.String() != "[]" {
+				r.setConditionIssueHasPullRequest(ctx, githubIssueInstance, "True")
+			} else {
+				r.setConditionIssueHasPullRequest(ctx, githubIssueInstance, "False")
+			}
+		}
+	}
 }

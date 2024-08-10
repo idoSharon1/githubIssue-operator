@@ -14,6 +14,8 @@ type Config struct {
 	UserGithubToken string `json:"userGithubToken"`
 	FinalizerKey    string `json:"finalizerKey"`
 	EnvName         string `json:"envName"`
+	RepoLabelKey    string `json:"repoLabelKey"`
+	TitleLabelKey   string `json:"titleLabelKey"`
 	GithubApi       struct {
 		BaseUrl string `json:"baseUrl"`
 	}

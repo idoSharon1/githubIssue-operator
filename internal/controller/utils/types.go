@@ -11,3 +11,7 @@ type UpdatedValue struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
+
+type GithubPrResponseWantedProperties struct {
+	Event string `json:"event"`
+}

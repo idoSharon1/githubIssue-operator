@@ -8,8 +8,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -21,19 +23,21 @@ func (r *GithubIssueReconciler) ensureSecret(githubIssueInstance *assignmentcore
 	logger := log.FromContext(ctx)
 
 	githubSecret := &corev1.Secret{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: githubSecretName}, githubSecret)
+	err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: fmt.Sprintf("%s-%s", req.Name, githubSecretName)}, githubSecret)
 
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Create default secret (user will have to update to his access token).
 			logger.Info(fmt.Sprintf("Creating default secret at namespace -> %s", req.Namespace))
-			err := r.Create(ctx, r.GithubDefaultAuthSecret(githubIssueInstance, types.NamespacedName{Namespace: req.Namespace, Name: githubSecretName}, githubSecretKeyName))
+			err := r.Create(ctx, r.GithubDefaultAuthSecret(githubIssueInstance, types.NamespacedName{Namespace: req.Namespace, Name: fmt.Sprintf("%s-%s", req.Name, githubSecretName)}, githubSecretKeyName))
 
 			if err != nil {
 				logger.Error(err, "Error at creating default secret, requeue reconcile function")
+				r.setCondition(ctx, githubIssueInstance, "AccessTokenSecretCreated", "False", "AccessTokenSecretCreated", "Error creatung github access token secret")
 				return &ctrl.Result{}, err
 			} else {
 				logger.Info("Successfully created default secret")
+				r.setCondition(ctx, githubIssueInstance, "AccessTokenSecretCreated", "True", "AccessTokenSecretCreated", "Successfully created github access token secret")
 				return nil, nil
 			}
 		} else {
@@ -75,6 +79,36 @@ func (r *GithubIssueReconciler) isFinalizerExist(githubIssueInstance *assignment
 	return controllerutil.ContainsFinalizer(githubIssueInstance, loadedConfig.FinalizerKey)
 }
 
+func (r *GithubIssueReconciler) isHelpLabelsExist(githubIssueInstance *assignmentcoreiov1.GithubIssue) bool {
+	if githubIssueInstance.GetLabels()[loadedConfig.TitleLabelKey] != "" && githubIssueInstance.GetLabels()[loadedConfig.RepoLabelKey] != "" {
+		print("asfasf")
+	}
+
+	return githubIssueInstance.GetLabels()[loadedConfig.TitleLabelKey] != "" && githubIssueInstance.GetLabels()[loadedConfig.RepoLabelKey] != ""
+}
+
+func (r *GithubIssueReconciler) addHelperLabels(githubIssueInstance *assignmentcoreiov1.GithubIssue, ctx context.Context) error {
+	githubIssueInstance.Labels[loadedConfig.TitleLabelKey] = githubIssueInstance.Spec.Title
+	githubIssueInstance.Labels[loadedConfig.RepoLabelKey] = r.changeRepoToLabelFormat(githubIssueInstance)
+
+	temp := r.changeRepoToLabelFormat(githubIssueInstance)
+	print(temp)
+
+	err := r.Update(ctx, githubIssueInstance)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *GithubIssueReconciler) changeRepoToLabelFormat(githubIssueInstance *assignmentcoreiov1.GithubIssue) string {
+	owner, repo := r.extractRepoAndOwner(githubIssueInstance)
+
+	return fmt.Sprintf("%s.%s", owner, repo)
+}
+
 func (r *GithubIssueReconciler) addFinalizersIfNeeded(githubIssueInstance *assignmentcoreiov1.GithubIssue, ctx context.Context) {
 	logger := log.FromContext(ctx)
 
@@ -94,6 +128,23 @@ func (r *GithubIssueReconciler) addFinalizersIfNeeded(githubIssueInstance *assig
 	}
 }
 
+func (r *GithubIssueReconciler) addHelperLabelsIfNeeded(githubIssueInstance *assignmentcoreiov1.GithubIssue, ctx context.Context) {
+	logger := log.FromContext(ctx)
+
+	logger.Info("Checking if needing to add repo + title labels to current issue")
+
+	if (!r.isHelpLabelsExist(githubIssueInstance)) ||
+		(githubIssueInstance.GetLabels()[loadedConfig.RepoLabelKey] != r.changeRepoToLabelFormat(githubIssueInstance) ||
+			githubIssueInstance.GetLabels()[loadedConfig.TitleLabelKey] != githubIssueInstance.Spec.Title) {
+		logger.Info("Adding helper labels")
+		err := r.addHelperLabels(githubIssueInstance, ctx)
+
+		if err != nil {
+			logger.Error(err, "Could not add helper labels, will stil continue lifecycle")
+		}
+	}
+}
+
 func (r *GithubIssueReconciler) removeFinalizer(githubIssueInstance *assignmentcoreiov1.GithubIssue, ctx context.Context) error {
 	logger := log.FromContext(ctx)
 
@@ -110,11 +161,11 @@ func (r *GithubIssueReconciler) removeFinalizer(githubIssueInstance *assignmentc
 	return nil
 }
 
-func (r *GithubIssueReconciler) containsCondition(ctx context.Context, githubIssueInstance *assignmentcoreiov1.GithubIssue, conditionValue string) bool {
-
+func (r *GithubIssueReconciler) containsCondition(githubIssueInstance *assignmentcoreiov1.GithubIssue, conditionValue string, newStatus metav1.ConditionStatus) bool {
 	output := false
+
 	for _, condition := range githubIssueInstance.Status.Conditons {
-		if condition.Reason == conditionValue {
+		if condition.Reason == conditionValue && condition.Status == newStatus {
 			output = true
 		}
 	}
@@ -154,10 +205,45 @@ func (r *GithubIssueReconciler) setConditionIssueHasPullRequest(ctx context.Cont
 	r.setCondition(ctx, githubIssueInstance, CONDITION_ISSUE_HAS_PR_TYPE, CONDITION_ISSUE_HAS_PR_STATUS, CONDITION_ISSUE_HAS_PR_REASON, CONDITION_ISSUE_HAS_PR_MESSAGE)
 }
 
+func (r *GithubIssueReconciler) updateConditionToAllOldRelevantObjects(ctx context.Context, githubIssueInstance *assignmentcoreiov1.GithubIssue) {
+	logger := log.FromContext(ctx)
+	allIssues := &assignmentcoreiov1.GithubIssueList{}
+
+	if r.isHelpLabelsExist(githubIssueInstance) {
+
+		labelSelector := labels.Set{
+			loadedConfig.RepoLabelKey:  r.changeRepoToLabelFormat(githubIssueInstance),
+			loadedConfig.TitleLabelKey: githubIssueInstance.Spec.Title,
+		}
+		selector := labels.SelectorFromSet(labelSelector)
+
+		listOptions := &client.ListOptions{
+			LabelSelector: selector,
+		}
+
+		err := r.List(ctx, allIssues, client.InNamespace(""), listOptions)
+
+		if err != nil {
+			logger.Error(err, "Could not list all githubIssues in the cluster to update their status")
+		}
+
+		logger.Info("Update all relevant githubIssues in the cluster with their correspond status")
+		for _, currentIssue := range allIssues.Items {
+			if currentIssue.Spec.Description != githubIssueInstance.Spec.Description {
+				r.setCondition(ctx, &currentIssue, "IssueDescriptionUnaffected", "True", "IssueDescriptionUnaffected", "Issue description not longer affected by this githubIssue")
+			} else {
+				r.setCondition(ctx, &currentIssue, "IssueDescriptionUnaffected", "False", "IssueDescriptionUnaffected", "Issue description not longer affected by this githubIssue")
+			}
+		}
+	} else {
+		logger.Info("Helper labels did not exist in this cycle could not update relevant status to all githubIssues")
+	}
+}
+
 func (r *GithubIssueReconciler) setCondition(ctx context.Context, githubIssueInstance *assignmentcoreiov1.GithubIssue, typeName string, status metav1.ConditionStatus, reason string, message string) {
 	logger := log.FromContext(ctx)
 
-	if !r.containsCondition(ctx, githubIssueInstance, reason) {
+	if !r.containsCondition(githubIssueInstance, reason, status) {
 		err := r.appendCondition(ctx, githubIssueInstance, typeName, status, reason, message)
 
 		if err != nil {

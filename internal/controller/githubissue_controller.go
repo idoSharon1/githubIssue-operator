@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -76,11 +77,12 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, err
 	}
 
-	result, err = r.getValueFromSecretAndStoreEnv(ctx, req, loadedConfig.AuthSecret.GithubSecretName, loadedConfig.AuthSecret.GithubSecretKeyName, loadedConfig.EnvName)
+	result, err = r.getValueFromSecretAndStoreEnv(ctx, req, fmt.Sprintf("%s-%s", req.Name, loadedConfig.AuthSecret.GithubSecretName), loadedConfig.AuthSecret.GithubSecretKeyName, loadedConfig.EnvName)
 	if result != nil {
 		return ctrl.Result{}, err
 	}
 
+	r.addHelperLabelsIfNeeded(instance, ctx)
 	r.addFinalizersIfNeeded(instance, ctx)
 
 	existInRepo, err := r.isIssueExist(ctx, instance)
@@ -100,13 +102,18 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 		r.setConditionIssueIsOpen(ctx, instance, "True")
 	} else {
-		err := r.updateIssueOnRepoIfNeeded(ctx, instance)
+		isUpdated, err := r.updateIssueOnRepoIfNeeded(ctx, instance)
 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+
+		if isUpdated {
+			r.updateConditionToAllOldRelevantObjects(ctx, instance)
+		}
 	}
 
+	r.updateIssueHavePRCondition(ctx, instance)
 	return ctrl.Result{}, nil
 }
 
