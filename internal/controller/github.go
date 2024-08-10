@@ -149,7 +149,7 @@ func (r *GithubIssueReconciler) updateIssue(ctx context.Context, githubIssueInst
 		SetBody(map[string]interface{}{
 			"owner":          owner,
 			"repo":           repo,
-			"issue_number":   string(remoteIssue.Number),
+			"issue_number":   strconv.Itoa(remoteIssue.Number),
 			"title":          remoteIssue.Title,
 			updatedValue.Key: updatedValue.Value,
 		}).
