@@ -55,12 +55,12 @@ func (r *GithubIssueReconciler) openIssue(ctx context.Context, githubIssueInstan
 		}).
 		Post(fmt.Sprintf("https://%s/repos/%s/%s/issues", loadedConfig.GithubApi.BaseUrl, owner, repo))
 
-	if res.StatusCode() == 401 {
+	if res.StatusCode() == 401 || res.StatusCode() == 404 {
 		logger.Error(err, "Bad credentials, please update the access token in your secret")
-		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecret", "False", "UserUpdatedHisAccessTokenInSecret", "Please update your access token inside the secret we created for your object")
+		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecretAndExistingRepo", "False", "UserUpdatedHisAccessTokenInSecretAndExistingRepo", "Please update your access token inside the secret we created for your object and ensure your repo is correct")
 		return errors.New("bad credentials")
 	} else {
-		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecret", "True", "UserUpdatedHisAccessTokenInSecret", "Access token is correct")
+		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecretAndExistingRepo", "True", "UserUpdatedHisAccessTokenInSecretAndExistingRepo", "Your object repo is correct with corresponding access token")
 	}
 
 	if err != nil {
@@ -155,12 +155,12 @@ func (r *GithubIssueReconciler) updateIssue(ctx context.Context, githubIssueInst
 		}).
 		Post(fmt.Sprintf("https://%s/repos/%s/%s/issues/%s", loadedConfig.GithubApi.BaseUrl, owner, repo, strconv.Itoa(remoteIssue.Number)))
 
-	if res.StatusCode() == 401 {
+	if res.StatusCode() == 401 || res.StatusCode() == 404 {
 		logger.Error(err, "Bad credentials, please update the access token in your secret")
-		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecret", "False", "UserUpdatedHisAccessTokenInSecret", "Please update your access token inside the secret we created for your object")
+		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecretAndExistingRepo", "False", "UserUpdatedHisAccessTokenInSecretAndExistingRepo", "Please update your access token inside the secret we created for your object and ensure your repo is correct")
 		return errors.New("bad credentials")
 	} else {
-		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecret", "True", "UserUpdatedHisAccessTokenInSecret", "Access token is correct")
+		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecretAndExistingRepo", "True", "UserUpdatedHisAccessTokenInSecretAndExistingRepo", "Your object repo is correct with corresponding access token")
 	}
 
 	if err != nil {
@@ -214,12 +214,12 @@ func (r *GithubIssueReconciler) getAllRepoIssues(ctx context.Context, githubIssu
 		SetResult(&githubIssues).
 		Get(fmt.Sprintf("https://%s/repos/%s/%s/issues", loadedConfig.GithubApi.BaseUrl, owner, repo))
 
-	if res.StatusCode() == 401 {
+	if res.StatusCode() == 401 || res.StatusCode() == 404 {
 		logger.Error(err, "Bad credentials, please update the access token in your secret")
-		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecret", "False", "UserUpdatedHisAccessTokenInSecret", "Please update your access token inside the secret we created for your object")
+		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecretAndExistingRepo", "False", "UserUpdatedHisAccessTokenInSecretAndExistingRepo", "Please update your access token inside the secret we created for your object and ensure your repo is correct")
 		return nil, errors.New("bad credentials")
 	} else {
-		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecret", "True", "UserUpdatedHisAccessTokenInSecret", "Access token is correct")
+		r.setCondition(ctx, githubIssueInstance, "UserUpdatedHisAccessTokenInSecretAndExistingRepo", "True", "UserUpdatedHisAccessTokenInSecretAndExistingRepo", "Your object repo is correct with corresponding access token")
 	}
 
 	if err != nil {

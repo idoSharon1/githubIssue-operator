@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	assignmentcoreiov1 "github.com/idoSharon1/githubIssue-operator/api/v1"
+	config "github.com/idoSharon1/githubIssue-operator/cmd/config"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -71,6 +72,9 @@ var _ = BeforeSuite(func() {
 	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
+
+	err = config.LoadEnvFile(".env")
+	Expect(err).NotTo(HaveOccurred())
 
 	err = assignmentcoreiov1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())

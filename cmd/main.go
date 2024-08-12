@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	assignmentcoreiov1 "github.com/idoSharon1/githubIssue-operator/api/v1"
+	"github.com/idoSharon1/githubIssue-operator/cmd/config"
 	"github.com/idoSharon1/githubIssue-operator/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
@@ -43,6 +44,12 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+
+	err := config.LoadEnvFile(".env")
+	if err != nil {
+		setupLog.Error(err, "unable to load .env file")
+		os.Exit(1)
+	}
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metric endpoint binds to. "+
 		"Use the port :8080. If not set, it will be '0 in order to disable the metrics server")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")

@@ -3,6 +3,11 @@ package config
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -30,4 +35,35 @@ func LoadConfig() (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+func LoadEnvFile(envFile string) error {
+	err := godotenv.Load(dir(envFile))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func dir(envFile string) string {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	for {
+		goModPath := filepath.Join(currentDir, "go.mod")
+		if _, err := os.Stat(goModPath); err == nil {
+			break
+		}
+
+		parent := filepath.Dir(currentDir)
+		if parent == currentDir {
+			panic(fmt.Errorf("go.mod not found"))
+		}
+		currentDir = parent
+	}
+
+	return filepath.Join(currentDir, envFile)
 }
