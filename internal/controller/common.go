@@ -91,9 +91,6 @@ func (r *GithubIssueReconciler) addHelperLabels(githubIssueInstance *assignmentc
 	githubIssueInstance.Labels[loadedConfig.TitleLabelKey] = githubIssueInstance.Spec.Title
 	githubIssueInstance.Labels[loadedConfig.RepoLabelKey] = r.changeRepoToLabelFormat(githubIssueInstance)
 
-	temp := r.changeRepoToLabelFormat(githubIssueInstance)
-	print(temp)
-
 	err := r.Update(ctx, githubIssueInstance)
 
 	if err != nil {

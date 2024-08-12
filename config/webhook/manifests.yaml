@@ -1,0 +1,26 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-assignment-core-io-assignment-core-io-v1-githubissue
+  failurePolicy: Fail
+  name: vgithubissue.kb.io
+  rules:
+  - apiGroups:
+    - assignment.core.io.assignment.core.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - githubissues
+  sideEffects: None

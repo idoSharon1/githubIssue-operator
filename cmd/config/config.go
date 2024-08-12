@@ -1,9 +1,8 @@
 package config
 
 import (
+	_ "embed"
 	"encoding/json"
-	"io/ioutil"
-	"os"
 )
 
 type Config struct {
@@ -21,20 +20,12 @@ type Config struct {
 	}
 }
 
+//go:embed config.json
+var configFile []byte
+
 func LoadConfig() (*Config, error) {
-	file, err := os.Open("/mnt/c/ido-proj/githubIssue-operator/cmd/config/config.json")
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	data, err := ioutil.ReadAll(file)
-	if err != nil {
-		return nil, err
-	}
-
 	var config Config
-	if err := json.Unmarshal(data, &config); err != nil {
+	if err := json.Unmarshal(configFile, &config); err != nil {
 		return nil, err
 	}
 

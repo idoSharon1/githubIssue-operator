@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -26,27 +27,51 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	assignmentcoreiov1 "github.com/idoSharon1/githubIssue-operator/api/v1"
+	"github.com/idoSharon1/githubIssue-operator/cmd/config"
+	"github.com/joho/godotenv"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("GithubIssue Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
-
+		godotenv.Load(".env")
 		ctx := context.Background()
 
 		typeNamespacedName := types.NamespacedName{
 			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+			Namespace: "default",
 		}
 
 		githubissue := &assignmentcoreiov1.GithubIssue{}
+		correspondsSecret := &corev1.Secret{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind GithubIssue")
-			err := k8sClient.Get(ctx, typeNamespacedName, githubissue)
+
+			loadedConfig, tempErr := config.LoadConfig()
+			Expect(tempErr).NotTo(HaveOccurred())
+
+			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: typeNamespacedName.Namespace, Name: fmt.Sprintf("%s-%s", typeNamespacedName.Name, loadedConfig.AuthSecret.GithubSecretName)}, correspondsSecret)
+			if err != nil && errors.IsNotFound(err) {
+				correspondsSecret := &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      fmt.Sprintf("%s-%s", typeNamespacedName.Name, loadedConfig.AuthSecret.GithubSecretName),
+						Namespace: typeNamespacedName.Namespace,
+					},
+					StringData: map[string]string{loadedConfig.AuthSecret.GithubSecretKeyName: os.Getenv("TESTING_ACCESS_TOKEN")},
+				}
+				Expect(k8sClient.Create(ctx, correspondsSecret)).To(Succeed())
+				createdSecret := &corev1.Secret{}
+				Eventually(func() bool {
+					err := k8sClient.Get(ctx, types.NamespacedName{Namespace: correspondsSecret.Namespace, Name: correspondsSecret.Name}, createdSecret)
+					return err == nil
+				}).Should(BeTrue())
+				Expect(createdSecret.StringData).Should(Equal(map[string]string{loadedConfig.AuthSecret.GithubSecretKeyName: os.Getenv("TESTING_ACCESS_TOKEN")}))
+			}
+
+			err = k8sClient.Get(ctx, typeNamespacedName, githubissue)
 			if err != nil && errors.IsNotFound(err) {
 				resource := &assignmentcoreiov1.GithubIssue{
 					ObjectMeta: metav1.ObjectMeta{
@@ -61,18 +86,11 @@ var _ = Describe("GithubIssue Controller", func() {
 					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
-			correspondsSecret := &corev1.Secret{}
-			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: typeNamespacedName.Namespace, Name: fmt.Sprintf("%s-%s", typeNamespacedName.Name, loadedConfig.AuthSecret.GithubSecretName)}, correspondsSecret)
-			if err != nil && errors.IsNotFound(err) {
-				correspondsSecret := &corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("%s-%s", typeNamespacedName.Name, loadedConfig.AuthSecret.GithubSecretName),
-						Namespace: typeNamespacedName.Namespace,
-					},
-					StringData: map[string]string{},
-				}
-				Expect(k8sClient.Create(ctx, correspondsSecret)).To(Succeed())
+				createdGithubIssue := &assignmentcoreiov1.GithubIssue{}
+				Eventually(func() bool {
+					err := k8sClient.Get(ctx, types.NamespacedName{Namespace: createdGithubIssue.Namespace, Name: createdGithubIssue.Name}, createdGithubIssue)
+					return err == nil
+				}).Should(BeTrue())
 			}
 		})
 
