@@ -1,0 +1,23 @@
+# permissions for end users to view githubissues.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: githubissue-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: githubissue-viewer-role
+rules:
+- apiGroups:
+  - assignment.core.io.assignment.core.io
+  resources:
+  - githubissues
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - assignment.core.io.assignment.core.io
+  resources:
+  - githubissues/status
+  verbs:
+  - get
