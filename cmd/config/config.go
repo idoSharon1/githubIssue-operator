@@ -52,6 +52,8 @@ func dir(envFile string) string {
 		panic(err)
 	}
 
+	print(currentDir)
+
 	for {
 		goModPath := filepath.Join(currentDir, "go.mod")
 		if _, err := os.Stat(goModPath); err == nil {

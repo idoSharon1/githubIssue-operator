@@ -22,6 +22,7 @@ type GithubIssueReconciler struct {
 }
 
 //+kubebuilder:rbac:groups=assignment.core.io.assignment.core.io,resources=githubissues,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=assignment.core.io.assignment.core.io,resources=githubissues/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=assignment.core.io.assignment.core.io,resources=githubissues/finalizers,verbs=update
 
